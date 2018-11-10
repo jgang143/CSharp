@@ -1,0 +1,214 @@
+USE [master]
+GO
+
+/****** Object:  Database [TwoC2P]    Script Date: 11/10/2018 8:28:32 AM ******/
+CREATE DATABASE [TwoC2P]
+ CONTAINMENT = NONE
+ ON  PRIMARY 
+( NAME = N'TwoC2P', FILENAME = N'C:\Jeffrey\DB2012\TwoC2P.mdf' , SIZE = 4096KB , MAXSIZE = UNLIMITED, FILEGROWTH = 1024KB )
+ LOG ON 
+( NAME = N'TwoC2P_log', FILENAME = N'C:\Jeffrey\DB2012\TwoC2p.ldf' , SIZE = 1024KB , MAXSIZE = 2048GB , FILEGROWTH = 10%)
+GO
+
+ALTER DATABASE [TwoC2P] SET COMPATIBILITY_LEVEL = 110
+GO
+
+IF (1 = FULLTEXTSERVICEPROPERTY('IsFullTextInstalled'))
+begin
+EXEC [TwoC2P].[dbo].[sp_fulltext_database] @action = 'enable'
+end
+GO
+
+ALTER DATABASE [TwoC2P] SET ANSI_NULL_DEFAULT OFF 
+GO
+
+ALTER DATABASE [TwoC2P] SET ANSI_NULLS OFF 
+GO
+
+ALTER DATABASE [TwoC2P] SET ANSI_PADDING OFF 
+GO
+
+ALTER DATABASE [TwoC2P] SET ANSI_WARNINGS OFF 
+GO
+
+ALTER DATABASE [TwoC2P] SET ARITHABORT OFF 
+GO
+
+ALTER DATABASE [TwoC2P] SET AUTO_CLOSE OFF 
+GO
+
+ALTER DATABASE [TwoC2P] SET AUTO_CREATE_STATISTICS ON 
+GO
+
+ALTER DATABASE [TwoC2P] SET AUTO_SHRINK OFF 
+GO
+
+ALTER DATABASE [TwoC2P] SET AUTO_UPDATE_STATISTICS ON 
+GO
+
+ALTER DATABASE [TwoC2P] SET CURSOR_CLOSE_ON_COMMIT OFF 
+GO
+
+ALTER DATABASE [TwoC2P] SET CURSOR_DEFAULT  GLOBAL 
+GO
+
+ALTER DATABASE [TwoC2P] SET CONCAT_NULL_YIELDS_NULL OFF 
+GO
+
+ALTER DATABASE [TwoC2P] SET NUMERIC_ROUNDABORT OFF 
+GO
+
+ALTER DATABASE [TwoC2P] SET QUOTED_IDENTIFIER OFF 
+GO
+
+ALTER DATABASE [TwoC2P] SET RECURSIVE_TRIGGERS OFF 
+GO
+
+ALTER DATABASE [TwoC2P] SET  DISABLE_BROKER 
+GO
+
+ALTER DATABASE [TwoC2P] SET AUTO_UPDATE_STATISTICS_ASYNC OFF 
+GO
+
+ALTER DATABASE [TwoC2P] SET DATE_CORRELATION_OPTIMIZATION OFF 
+GO
+
+ALTER DATABASE [TwoC2P] SET TRUSTWORTHY OFF 
+GO
+
+ALTER DATABASE [TwoC2P] SET ALLOW_SNAPSHOT_ISOLATION OFF 
+GO
+
+ALTER DATABASE [TwoC2P] SET PARAMETERIZATION SIMPLE 
+GO
+
+ALTER DATABASE [TwoC2P] SET READ_COMMITTED_SNAPSHOT OFF 
+GO
+
+ALTER DATABASE [TwoC2P] SET HONOR_BROKER_PRIORITY OFF 
+GO
+
+ALTER DATABASE [TwoC2P] SET RECOVERY FULL 
+GO
+
+ALTER DATABASE [TwoC2P] SET  MULTI_USER 
+GO
+
+ALTER DATABASE [TwoC2P] SET PAGE_VERIFY CHECKSUM  
+GO
+
+ALTER DATABASE [TwoC2P] SET DB_CHAINING OFF 
+GO
+
+ALTER DATABASE [TwoC2P] SET FILESTREAM( NON_TRANSACTED_ACCESS = OFF ) 
+GO
+
+ALTER DATABASE [TwoC2P] SET TARGET_RECOVERY_TIME = 0 SECONDS 
+GO
+
+ALTER DATABASE [TwoC2P] SET  READ_WRITE 
+GO
+
+
+----------------
+
+
+USE [TwoC2P]
+GO
+
+/****** Object:  Table [dbo].[Cards]    Script Date: 11/10/2018 8:29:20 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[Cards](
+	[m0_Cards] [bigint] IDENTITY(1,1) NOT NULL,
+	[CardNumber] [nvarchar](16) NOT NULL,
+ CONSTRAINT [PK_Cards] PRIMARY KEY CLUSTERED 
+(
+	[m0_Cards] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY]
+
+GO
+
+-----------------
+
+USE [TwoC2P]
+GO
+
+/****** Object:  StoredProcedure [dbo].[ValidateCard]    Script Date: 11/10/2018 8:29:43 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+-- =============================================
+-- Author:		<Author,,Name>
+-- Create date: <Create Date,,>
+-- Description:	<Description,,>
+-- =============================================
+CREATE PROCEDURE [dbo].[ValidateCard]
+	@CardNumber NVARCHAR(20),
+	@ExpiryDate NVARCHAR(6)
+	
+AS
+BEGIN
+
+	DECLARE @CardType NVARCHAR(30), @Result NVARCHAR(20)
+	
+	SELECT @CardType = 'Unknown', @Result = 'Invalid' 
+
+	-- SET NOCOUNT ON added to prevent extra result sets from
+	-- interfering with SELECT statements.
+	SET NOCOUNT ON;
+
+	-- Begin Validation of Card
+
+		--For Visa
+		IF SUBSTRING(@CardNumber, 1, 1) = '4'
+		BEGIN			
+			SET @CardType = 'Visa'
+			SET @Result = CASE WHEN LEN(LTRIM(RTRIM(@CardNumber))) = 16 THEN 'Valid' ELSE 'Invalid' END
+			IF @Result = 'Valid'
+				SET @Result = CASE WHEN DAY(EOMONTH(DATEFROMPARTS(CONVERT(INT, SUBSTRING(@ExpiryDate,3,4)) ,2,1))) = 29 THEN 'Valid' ELSE 'Invalid' END
+		END
+
+		--For MasterCard
+		IF SUBSTRING(@CardNumber, 1, 1) = '5'
+		BEGIN			
+			SET @CardType = 'MasterCard'
+			SET @Result = CASE WHEN LEN(LTRIM(RTRIM(@CardNumber))) = 16 THEN 'Valid' ELSE @Result END
+			IF @Result = 'Valid'
+				SET @Result = CASE WHEN CONVERT(INT, SUBSTRING(@ExpiryDate, 3, 4)) % 2 = 1 THEN 'Valid' ELSE 'Invalid' END
+		END
+
+		--For Amex
+		IF SUBSTRING(@CardNumber, 1, 2) IN ('34','37')
+		BEGIN
+			SET @CardType = 'Amex'
+			SET @Result = CASE WHEN LEN(LTRIM(RTRIM(@CardNumber))) = 15 THEN 'Valid' ELSE 'Invalid' END
+		END
+
+		--For JCB
+		IF SUBSTRING(@CardNumber, 1, 4) BETWEEN '3528' AND '3589'
+		BEGIN
+			SET @CardType = 'JCB'
+			SET @Result = CASE WHEN LEN(LTRIM(RTRIM(@CardNumber))) = 16 THEN 'Valid' ELSE 'Invalid' END
+		END
+
+		-- Check if Card No. exist in table
+		IF @Result = 'Valid'
+			IF EXISTS(SELECT 1 FROM Cards WHERE CardNumber = @CardNumber)
+				SET @Result = 'Valid'
+			ELSE
+				SEt @Result = 'Does not Exist'
+
+		SELECT @Result AS Result, @CardType AS CardType
+
+END
+
+GO
